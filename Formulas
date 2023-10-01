@@ -1,0 +1,94 @@
+
+Remaining Months: 
+IF(COUNT(SELECT(ClientPayments[Proj], [Proj] = [_THISROW].[Name])) - [Current Month] < -1, 0, COUNT(SELECT(ClientPayments[Proj], [Proj] = [_THISROW].[Name])) - [Current Month])
+
+
+Amount Paid: SUM(SELECT(ClientPayments[Amt], AND([Paid] = true, [Proj] = [_THISROW].[Name])))
+
+
+isOverdue: 
+IFS(COUNT(SELECT(ClientPayments[ID], AND([Paid] = false, [Proj] = [_THISROW].[Name], (HOUR(TODAY()-[DueDt])/24)>2)))>0, 2,COUNT(SELECT(ClientPayments[ID], AND([Paid] = false, [Proj]=[_THISROW].[Name],(HOUR(TODAY()-[DueDt])/24)>0)))>0, 1)
+
+
+Project Duration: 
+CONCATENATE(COUNT(SELECT(ClientPayments[Proj], [Proj] = [_THISROW].[Name])), " Months")
+Project Value: SUM(SELECT(ClientPayments[Amt],[_THISROW].[Name] = [Proj]))
+
+
+Start Date: 
+MIN(
+  SELECT(
+    ClientPayments[PaidDt],
+    AND(
+      [Proj] = [_THISROW].[Name],
+      [Paid] = TRUE
+    )
+  )
+)
+
+
+
+Next Amount: 
+IF(OR([Percent Complete] = 1, [Percent Complete] = 100), "Completed", if([Remaining Months]>0,MIN(SELECT(ClientPayments[Amt], AND([DueDt] = [_THISROW].[Due Date], [_THISROW].[Name] = [Proj]))),0))
+
+
+Due Date: 
+MIN(
+  SELECT(
+    ClientPayments[DueDt],
+    AND(
+      [Proj] = [_THISROW].[Name],
+      [Paid] = FALSE
+    )
+  )
+)
+Current Month: 
+ COUNT(
+  FILTER(
+    ClientPayments,
+    AND(
+      [Proj] = [_THISROW].[Name],
+      [Paid] = TRUE
+    )
+  )
+)
+
+
+Total Commission:
+ ([Project Value] - SUM(select(DevPayments[Amt], [_THISROW].[Name] = [Proj]))) * ([Commision])
+
+
+Percent Complete: 
+([Current Month]/DECIMAL(COUNT(SELECT(ClientPayments[Proj], [Proj] = [_THISROW].[Name]))))
+
+
+Next Commission: 
+IF(OR([Percent Complete] = 1, [Percent Complete] = 100, [Next Amount] <= 0), 0, Max(SELECT(ClientPayments[Commission Amount],AND([DueDt] = [_THISROW].[Due Date], [_THISROW].[Name] = [Proj]))))
+
+
+Net Company’s Profit: 
+[Project Value] - SUM(SELECT(DevPayments[Amt], [Proj] = [_THISROW].[Name])) - [Total Commission]
+
+
+Developer Cost: SUM(SELECT(DevPayments[Amt], [Proj] = [_THISROW].[Name]))
+
+
+Commission Amount per client payment:
+IF(MAX(SELECT(DevPayments[Amt], AND([_THISROW].[Proj] = [Proj], [_THISROW].[Mo] = [Mo]))) = 0,0, ([Amt] - MAX(SELECT(DevPayments[Amt], AND([_THISROW].[Proj] = [Proj], [_THISROW].[Mo] = [Mo])))) *[Proj].[Commision])
+
+
+Calendar Name:
+IF(ISBLANK(ANY(SELECT(Projects[Calender Name], [_THISROW].[Proj] = [Name]))), ANY(SELECT(Projects[Name], [_THISROW].[Proj] = [Name])), ANY(SELECT(Projects[Calender Name], [_THISROW].[Proj] = [Name])))
+
+
+Tables:
+
+Projects (Parent) -----------------Manages Projects 
+ClientPayments (Child) ------------Manages Client Payments for each project 
+DevPayments (Child) -------------- Manages Developer Payments for each project
+
+Budget (Parent) -------------------Reoccurring Company Expendiature 
+Budget Payments (Child) -----------Stores Payments for each budget (ex. Netflix)
+onDeck (Independent) ------------- Projects that are likely to be added to the pipeline (Estimate is sent or proposal is signed)
+
+
